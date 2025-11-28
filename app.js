@@ -14,8 +14,10 @@
  *   - /config (env/configuration)
  */
 
+require("dotenv").config(); // Load .env into process.env (keep secrets out of code).
 const express = require("express"); // Web framework that simplifies HTTP server creation.
 const morgan = require("morgan"); // HTTP request logger for visibility.
+const { pool } = require("./config/db"); // Postgres connection pool.
 const { listTasks, createTask } = require("./models/task"); // Basic in-memory model helpers.
 
 const app = express();
@@ -36,6 +38,19 @@ app.get("/health", (req, res) => {
 // Response: JSON object with a greeting message.
 app.get("/api/v1/hello", (req, res) => {
   res.json({ message: "Hello, World!" });
+});
+
+// ----- DB health check (verifies Postgres connectivity) -----
+app.get("/api/v1/db-health", async (req, res) => {
+  try {
+    const { rows } = await pool.query("select 1 as ok");
+    res.json({ database: rows[0].ok === 1 ? "up" : "unknown" });
+  } catch (err) {
+    console.error("DB health check failed", err);
+    res
+      .status(500)
+      .json({ database: "down", error: "Unable to reach database" });
+  }
 });
 
 // ----- Simple in-memory "Task" routes (model is in /models/task.js) -----
