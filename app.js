@@ -18,7 +18,7 @@ require("dotenv").config(); // Load .env into process.env (keep secrets out of c
 const express = require("express"); // Web framework that simplifies HTTP server creation.
 const morgan = require("morgan"); // HTTP request logger for visibility.
 const { pool } = require("./config/db"); // Postgres connection pool.
-const { listTasks, createTask } = require("./models/task"); // Basic in-memory model helpers.
+const { ensureTasksTable, listTasks, createTask } = require("./models/task"); // Postgres-backed helpers.
 
 const app = express();
 const PORT = process.env.PORT || 3000; // Allow override via PORT env var in production.
@@ -56,21 +56,39 @@ app.get("/api/v1/db-health", async (req, res) => {
 // ----- Simple in-memory "Task" routes (model is in /models/task.js) -----
 // GET /api/v1/tasks -> list all tasks
 app.get("/api/v1/tasks", (req, res) => {
-  res.json(listTasks());
+  listTasks()
+    .then((tasks) => res.json(tasks))
+    .catch((err) => {
+      console.error("Failed to fetch tasks", err);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    });
 });
 
 // POST /api/v1/tasks -> create a new task
 // Minimal validation for required fields; adjust as you grow.
-app.post("/api/v1/tasks", (req, res) => {
-  const { name, note, priority, status } = req.body;
+app.post("/api/v1/tasks", async (req, res) => {
+  // Ensure the client sent JSON; otherwise Express will leave req.body undefined.
+  console.log(req.body);
+  if (!req.is("application/json")) {
+    return res
+      .status(415)
+      .json({ message: "Content-Type must be application/json" });
+  }
+
+  const { name, note, priority, status } = req.body || {};
   if (!name || !note || !priority || !status) {
     return res
       .status(400)
       .json({ message: "name, note, priority, and status are required" });
   }
 
-  const newTask = createTask({ name, note, priority, status });
-  res.status(201).json(newTask);
+  try {
+    const newTask = await createTask({ name, note, priority, status });
+    res.status(201).json(newTask);
+  } catch (err) {
+    console.error("Failed to create task", err);
+    res.status(500).json({ message: "Failed to create task" });
+  }
 });
 
 // ----- 404 handler for any unmatched routes -----
@@ -79,6 +97,16 @@ app.use((req, res) => {
 });
 
 // ----- Start the HTTP server -----
-app.listen(PORT, () => {
-  console.log(`API listening on http://localhost:${PORT}`);
-});
+async function start() {
+  try {
+    await ensureTasksTable(); // Creates the tasks table if it does not exist.
+    app.listen(PORT, () => {
+      console.log(`API listening on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error("Server failed to start", err);
+    process.exit(1);
+  }
+}
+
+start();
