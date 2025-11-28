@@ -9,20 +9,13 @@
 //   PGPASSWORD=your_password
 //   PGSSLMODE=require   (Supabase typically requires SSL)
 //
-// Example .env (do not commit this file):
-//   PGHOST=db.iqwzhdftzzgmqlamlunc.supabase.co
-//   PGPORT=5432
-//   PGDATABASE=postgres
-//   PGUSER=postgres
-//   PGPASSWORD=...your password...
-//   PGSSLMODE=require
 
-const { Pool } = require('pg');
+const { Pool } = require("pg");
 
 // Decide SSL mode. Some hosts (e.g., Supabase) require SSL; local dev often does not.
-const sslMode = (process.env.PGSSLMODE || 'require').toLowerCase();
+const sslMode = (process.env.PGSSLMODE || "require").toLowerCase();
 const ssl =
-  sslMode === 'disable'
+  sslMode === "disable"
     ? false
     : {
         rejectUnauthorized: false, // Accept self-signed certs; tighten for production if needed.
