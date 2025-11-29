@@ -16,10 +16,18 @@ async function ensureTasksTable() {
   await pool.query(CREATE_TABLE_SQL);
 }
 
-async function listTasks() {
-  const { rows } = await pool.query(
-    "select id, name, note, priority, status, created_at from nj_tasks order by id"
-  );
+async function listTasks({ limit } = {}) {
+  const hasLimit = Number.isInteger(limit) && limit > 0;
+  let sql =
+    "select id, name, note, priority, status, created_at from nj_tasks order by created_at desc";
+  const params = [];
+
+  if (hasLimit) {
+    sql += " limit $1";
+    params.push(limit);
+  }
+
+  const { rows } = await pool.query(sql, params);
   return rows;
 }
 

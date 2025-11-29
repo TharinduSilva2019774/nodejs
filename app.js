@@ -62,7 +62,19 @@ app.get("/api/v1/db-health", async (req, res) => {
 // ----- Simple in-memory "Task" routes (model is in /models/task.js) -----
 // GET /api/v1/tasks -> list all tasks
 app.get("/api/v1/tasks", (req, res) => {
-  listTasks()
+  const { limit } = req.query;
+  let parsedLimit;
+
+  if (limit !== undefined) {
+    parsedLimit = Number(limit);
+    if (!Number.isInteger(parsedLimit) || parsedLimit <= 0) {
+      return res
+        .status(400)
+        .json({ message: "limit must be a positive integer" });
+    }
+  }
+
+  listTasks(parsedLimit ? { limit: parsedLimit } : undefined)
     .then((tasks) => res.json(tasks))
     .catch((err) => {
       console.error("Failed to fetch tasks", err);
