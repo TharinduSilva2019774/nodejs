@@ -33,8 +33,48 @@ async function createTask({ name, note, priority, status }) {
   return rows[0];
 }
 
+async function updateTask(id, { name, note, priority, status }) {
+  const sets = [];
+  const values = [];
+
+  if (name !== undefined) {
+    sets.push(`name = $${sets.length + 1}`);
+    values.push(name);
+  }
+  if (note !== undefined) {
+    sets.push(`note = $${sets.length + 1}`);
+    values.push(note);
+  }
+  if (priority !== undefined) {
+    sets.push(`priority = $${sets.length + 1}`);
+    values.push(priority);
+  }
+  if (status !== undefined) {
+    sets.push(`status = $${sets.length + 1}`);
+    values.push(status);
+  }
+
+  if (sets.length === 0) {
+    throw new Error("No fields provided for update");
+  }
+
+  // id is always the last parameter
+  values.push(id);
+  const idParamIndex = sets.length + 1;
+
+  const { rows } = await pool.query(
+    `update nj_tasks
+     set ${sets.join(", ")}
+     where id = $${idParamIndex}
+     returning id, name, note, priority, status, created_at`,
+    values
+  );
+  return rows[0];
+}
+
 module.exports = {
   ensureTasksTable,
   listTasks,
   createTask,
+  updateTask,
 };

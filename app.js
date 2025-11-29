@@ -18,7 +18,13 @@ require("dotenv").config(); // Load .env into process.env (keep secrets out of c
 const express = require("express"); // Web framework that simplifies HTTP server creation.
 const morgan = require("morgan"); // HTTP request logger for visibility.
 const { pool } = require("./config/db"); // Postgres connection pool.
-const { ensureTasksTable, listTasks, createTask } = require("./models/task"); // Postgres-backed helpers.
+const {
+  ensureTasksTable,
+  listTasks,
+  createTask,
+  updateTask,
+} = require("./models/task"); // Postgres-backed helpers.
+const { convertPriority, convertStatus } = require("./utils/enums");
 
 const app = express();
 const PORT = process.env.PORT || 3000; // Allow override via PORT env var in production.
@@ -83,11 +89,66 @@ app.post("/api/v1/tasks", async (req, res) => {
   }
 
   try {
-    const newTask = await createTask({ name, note, priority, status });
+    const cPriority = convertPriority(Number(priority));
+    const cStatus = convertStatus(Number(status));
+    console.log(cPriority, cStatus);
+    const newTask = await createTask({
+      name,
+      note,
+      priority: cPriority,
+      status: cStatus,
+    });
     res.status(201).json(newTask);
   } catch (err) {
     console.error("Failed to create task", err);
     res.status(500).json({ message: "Failed to create task" });
+  }
+});
+
+// PUT /api/v1/tasks/:id -> update an existing task (partial updates allowed)
+app.put("/api/v1/tasks/:id", async (req, res) => {
+  if (!req.is("application/json")) {
+    return res
+      .status(415)
+      .json({ message: "Content-Type must be application/json" });
+  }
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ message: "Task id must be an integer" });
+  }
+
+  const { name, note, priority, status } = req.body || {};
+  const hasUpdatableField =
+    name !== undefined ||
+    note !== undefined ||
+    priority !== undefined ||
+    status !== undefined;
+
+  if (!hasUpdatableField) {
+    return res
+      .status(400)
+      .json({ message: "Provide at least one field to update" });
+  }
+
+  try {
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (note !== undefined) updates.note = note;
+    if (priority !== undefined)
+      updates.priority = convertPriority(Number(priority));
+    if (status !== undefined) updates.status = convertStatus(Number(status));
+
+    const updated = await updateTask(id, updates);
+
+    if (!updated) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Failed to update task", err);
+    res.status(500).json({ message: "Failed to update task" });
   }
 });
 
