@@ -28,10 +28,42 @@ const { convertPriority, convertStatus } = require("./utils/enums");
 
 const app = express();
 const PORT = process.env.PORT || 3000; // Allow override via PORT env var in production.
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+  : ["*"];
 
 // ----- Global middleware (runs for every request) -----
 app.use(express.json()); // Parse JSON bodies into req.body.
 app.use(morgan("tiny")); // Log method, path, status, and response time.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowAll = allowedOrigins.includes("*");
+  const matchedOrigin =
+    allowAll || !origin
+      ? "*"
+      : allowedOrigins.find((allowed) => allowed === origin);
+
+  if (matchedOrigin) {
+    res.header("Access-Control-Allow-Origin", matchedOrigin);
+  }
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  );
+  if (matchedOrigin !== "*") {
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204); // Handle preflight quickly
+  }
+
+  next();
+});
 
 // ----- Health check (useful for uptime checks) -----
 app.get("/health", (req, res) => {
